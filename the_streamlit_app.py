@@ -367,75 +367,65 @@ if uploaded_file:
             st.radio(f"Row {idx} - Anomaly?", ["Uncertain", "Yes", "No"], key=f"fb_{idx}")
 
     with tabs[5]:
-        st.markdown('<div class="summary-section">', unsafe_allow_html=True)
-        st.markdown("### 📌 Summary & Strategic Context")
+        st.markdown("### ✅ Results Summary")
+    
+        # Creating a clean metrics display
         st.markdown(f"""
-        Recent analysis across **{total_rows:,} shipments** reveals a **potential anomaly rate of {(any_model_count / total_rows):.2%}**. 
-        Among these, **{two_plus_models} shipments** were flagged by **2 or more independent models**, representing **high-confidence risks**.
-
-        Focusing on these overlapping anomalies allows for a **cost-effective pilot intervention** that targets:
-
-        - **Top Anomalous Routes**: `{', '.join(top_routes.index.tolist())}`  
-        - **Most Flagged Commodity Code**: `{top_commodity}`  
-        - **Most Flagged Partner**: `{top_partner}` with **{df_clean[df_clean['Flagged_by_Any'] & (df_clean['PARTNER_CODE'] == top_partner)].shape[0]} suspicious shipments**
+        * **{all_models_count} shipments** flagged by all 3 models - high-risk 
+        * **{two_plus_models} shipments** flagged by 2+ models - requires review
+        * **{any_model_count} shipments** flagged by at least 1 model
         """)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # === Section: Tactical Recommendations ===
-        st.markdown('<div class="summary-section">', unsafe_allow_html=True)
-        st.markdown("### ✅ Targeted Tactical Actions")
-
+        
+        # Highlight key patterns
+        st.markdown("### 🔍 Key Patterns")
+        
         st.markdown(f"""
-        1. **Pilot Route Surveillance**  
-        Begin risk intervention with focused inspections on routes:  
-        `{'`, `'.join(top_routes.index.tolist())}`.  
-        These routes show the **highest anomaly density** and are ideal for testing early warning flags.
-
-        2. **Commodity Code Control**  
-        Implement mandatory **pre-clearance documents** for shipments under **commodity code `{top_commodity}`**.  
-        This item consistently triggered multiple anomaly layers, suggesting potential for misclassification or weight misdeclaration.
-
-        3. **Partner Risk Flagging**  
-        Partner `{top_partner}` surfaced repeatedly across models.  
-        Recommend creating a **watchlist profile** and enabling **stricter acceptance validation** until pattern stabilizes.
-
-        4. **Integrate Hybrid Detection Mechanism**  
-        The combination of **statistical (MAD)** and **ML (AE, IF)** signals proved robust.  
-        Build alert logic into shipment intake platforms to **trigger early warnings** based on model consensus (≥2 flags).
-
-        5. **Prevention, Not Just Detection**  
-        Embed logic **before container acceptance**, preventing risk at origin:
-        - Flag suspicious patterns before documentation is approved
-        - Save clearance delays and potential regulatory fines
-        - Quantify anomalies intercepted pre-shipment
+        * **Most anomalous routes**: `{'`, `'.join(top_routes.index.tolist())}`
+        * **Most flagged partner**: `{top_partner}`
+        * **Most flagged commodity**: `{top_commodity}`
+        * **Anomaly rate**: {(any_model_count/total_rows):.1%} of all shipments
         """)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # === Section: Business Value Justification ===
-        st.markdown('<div class="summary-section">', unsafe_allow_html=True)
-        st.markdown("### 📈 Projected Business Impact")
-
-        estimated_true_positive_rate = 0.05  # Assuming 5% of anomalies are actual fraud
-        avoided_risk = int(estimated_true_positive_rate * any_model_count)
-        savings_estimate_usd = avoided_risk * 800  # e.g., estimated average loss per bad shipment
-
-        st.markdown(f"""
-        If just **5% of flagged anomalies** are true cases of misdeclaration, then:
-
-        - 🚚 **{avoided_risk:,} shipments** could have been **prevented or audited early**
-        - 💸 Estimated financial savings: **${savings_estimate_usd:,.0f} USD**
-        - 🛡️ Long-term benefits: improved compliance, reduced delays, stronger stakeholder trust
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # === Section: Roadmap ===
-        st.markdown('<div class="summary-section">', unsafe_allow_html=True)
-        st.markdown("### 🛠 Roadmap to Action")
-
+        
+        # Recommended Actions section
+        st.markdown("### 🔧 Recommended Actions")
+        
         st.markdown("""
-        - 📍 **Phase 1**: Deploy pilot on top 2 routes with real-time alerts
-        - 🧪 **Phase 2**: Monitor inspection hit rate and adjust model thresholds
-        - 🔄 **Phase 3**: Add user feedback loop for true/false positive validation
-        - 🌍 **Phase 4**: Scale to global operations with reinforced anomaly architecture
+        1. **Start pilot audit program** on top 2 flagged routes
+        2. **Update risk profile** for the most flagged partner
+        3. **Implement pre-clearance requirements** for top anomalous commodity
         """)
-        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Add a toggle for advanced metrics
+        with st.expander("Advanced Metrics"):
+            # Create a simple visualization of model overlap
+            fig, ax = plt.subplots(figsize=(8, 5))
+            model_counts = {
+                "IF Only": int((df_clean['IF_Anomaly'] & ~df_clean['AE_Anomaly'] & ~df_clean['MAD_Anomaly']).sum()),
+                "AE Only": int((~df_clean['IF_Anomaly'] & df_clean['AE_Anomaly'] & ~df_clean['MAD_Anomaly']).sum()),
+                "MAD Only": int((~df_clean['IF_Anomaly'] & ~df_clean['AE_Anomaly'] & df_clean['MAD_Anomaly']).sum()),
+                "IF+AE": int((df_clean['IF_Anomaly'] & df_clean['AE_Anomaly'] & ~df_clean['MAD_Anomaly']).sum()),
+                "IF+MAD": int((df_clean['IF_Anomaly'] & ~df_clean['AE_Anomaly'] & df_clean['MAD_Anomaly']).sum()),
+                "AE+MAD": int((~df_clean['IF_Anomaly'] & df_clean['AE_Anomaly'] & df_clean['MAD_Anomaly']).sum()),
+                "All 3": int(df_clean['Flagged_by_All'].sum())
+            }
+            
+            # Sort by count descending
+            model_counts = {k: v for k, v in sorted(model_counts.items(), key=lambda item: item[1], reverse=True)}
+            
+            # Create bar chart
+            sns.barplot(x=list(model_counts.keys()), y=list(model_counts.values()), palette="viridis", ax=ax)
+            ax.set_ylabel('Count')
+            ax.set_title('Model Overlap Distribution')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            st.pyplot(fig)
+            
+            # Add a table of top anomalous items
+            st.markdown("#### Top Anomalous Combinations")
+            
+            # Get top combinations of route+commodity with anomalies
+            top_combos = df_clean[df_clean['Flagged_by_Any']].groupby(['POL/POD', 'COMMODITY_CODE']).size().reset_index()
+            top_combos.columns = ['Route', 'Commodity', 'Count']
+            top_combos = top_combos.sort_values('Count', ascending=False).head(5)
+            
+            st.table(top_combos)
